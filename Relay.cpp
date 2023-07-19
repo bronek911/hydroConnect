@@ -10,10 +10,6 @@ Relay::Relay()
     // Initialize member variables to default values
     name = "";
     relayPin = 0;
-
-    timerState = 0;
-    timerTimeOnSec = 3;
-    timerTimeOffSec = 10;
 }
 
 Relay::Relay(String name, int pin)
@@ -23,11 +19,12 @@ Relay::Relay(String name, int pin)
     state = LOW;
     pinMode(relayPin, OUTPUT);
 
-    timerState = 0;
-    timerTimeOnSec = 3;
-    timerTimeOffSec = 10;
+    this->timer = Timer(0, 3, 10);
+}
 
-    pumpOnDelay.start(timerTimeOnSec * 1000, AsyncDelay::MILLIS);
+Timer* Relay::getTimer()
+{
+    return &timer;
 }
 
 void Relay::turnON()
@@ -81,16 +78,6 @@ void Relay::timerSetup(int timeOnSec, int timeOffSec)
     timerTimeOffSec = timeOffSec;
 }
 
-void Relay::timerOn()
-{
-    timerState = 1;
-}
-
-void Relay::timerOff()
-{
-    timerState = 0;
-}
-
 String Relay::getStateJson()
 {
     DynamicJsonDocument doc(200);
@@ -103,14 +90,6 @@ String Relay::getStateJson()
 
 bool Relay::getTimerState() {
   return timerState;
-}
-
-AsyncDelay* Relay::getPumpOnDelay() {
-  return &pumpOnDelay;
-}
-
-AsyncDelay* Relay::getPumpOffDelay() {
-  return &pumpOffDelay;
 }
 
 unsigned char Relay::getTimerTimeOnSec() {

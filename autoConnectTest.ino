@@ -50,17 +50,6 @@ void setup()
     // if it does not connect it starts an access point with the specified name
     wifiManager.autoConnect("HydroConnect");
 
-    for (unsigned int i = 0; i < sizeof Boxes / sizeof Boxes[0]; i++)
-    {
-        Box *box = &Boxes[i];
-        Relay *pump = box->getPump();
-
-        Serial.println("Initializing scheduler for pump box-1");
-        Serial.println(pump->getTimerTimeOnSec());
-
-        pump->getPumpOnDelay()->start(pump->getTimerTimeOnSec() * 1000, AsyncDelay::MILLIS);
-    }
-
     // if you get here you have connected to the WiFi
     Serial.println("Connected.");
 
@@ -71,7 +60,7 @@ void setup()
         {
             Box *box = &Boxes[0];
             Relay *pump = box->getPump();
-            pump->timerOn();
+            pump->getTimer()->turnOn();
             server.send(200, "text/plain", "Pump turned on"); 
         }
     );
@@ -80,7 +69,7 @@ void setup()
         {
             Box *box = &Boxes[0];
             Relay *pump = box->getPump();
-            pump->timerOff();
+            pump->getTimer()->turnOff();
             server.send(200, "text/plain", "Pump turned on"); 
         }
     );
@@ -133,42 +122,22 @@ void loop()
 
     Box *box = &Boxes[0];
     Relay *pump = box->getPump();
+    Timer *timer = pump->getTimer();
 
     // Sprawdź, czy cykl jest włączony
-    if (pump->getTimerState() == 1) {
+    if (timer->getState() == 1) {
 
+        // Mam zapis czasu uruchomienia cyklu
+        // Mam cas trwania ON
+        // Mam cas trwania OFF
 
-        Serial.println(millis());
-        Serial.println(pump->getPumpOnDelay()->isExpired());
-        Serial.println(pump->getPumpOnDelay()->getDelay());
-        Serial.println(pump->getPumpOnDelay()->getUnit());
-        Serial.println(pump->getPumpOnDelay()->getExpiry());
-        Serial.println(pump->getPumpOnDelay()->getDuration());
-        
-        // Jeśli czas dla włączenia pompy upłynął
-        if (pump->getPumpOnDelay()->isExpired() == true) {
+        Serial.println(timer->getTriggerTime());
 
-            Serial.println("pump->getPumpOnDelay()->isExpired");
+        // if(millis() % 3000 == 0){
 
-            // Wyłącz pompę
-            pump->turnOFF();
+        // } else {
 
-            // Rozpocznij odliczanie czasu dla wyłączenia pompy
-            // pump->getPumpOffDelay()->start(pump->getTimerTimeOffSec() * 1000, AsyncDelay::MILLIS);
-            pump->getPumpOffDelay()->start(3000, AsyncDelay::MILLIS);
-        }
-
-        // Jeśli czas dla wyłączenia pompy upłynął
-        if (pump->getPumpOffDelay()->isExpired() == true) {
-
-            Serial.println("pump->getPumpOffDelay()->isExpired");
-
-            // Włącz pompę
-            pump->turnON();
-
-            // Rozpocznij odliczanie czasu dla włączenia pompy
-            pump->getPumpOnDelay()->start(pump->getTimerTimeOnSec() * 1000, AsyncDelay::MILLIS);
-        }
+        // }
     }
 
 }
