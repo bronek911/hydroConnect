@@ -48,10 +48,7 @@ void setup()
     Serial.println("Connected.");
 
     server.on("/", handleDashboard);
-
     server.on("/devices", handleDevices);
-
-    server.on("/pump", handleDevices);
 
     server.on("/pump/on", handlePumpOn);
     server.on("/pump/off", handlePumpOff);
@@ -150,13 +147,13 @@ void handleDevices()
     DynamicJsonDocument doc(1024);
 
     for (unsigned int i=0; i<sizeof Boxes/sizeof Boxes[0]; i++) {
-        Box box = Boxes[i];
-        Relay pump = box.getPump();
-        Relay light = box.getLight();
-        doc["devices"][box.getName()]["pump"]["name"] = pump.getName();
-        doc["devices"][box.getName()]["pump"]["state"] = pump.getState();
-        doc["devices"][box.getName()]["light"]["name"] = light.getName();
-        doc["devices"][box.getName()]["light"]["state"] = light.getState();
+        Box* box = &Boxes[i];
+        Relay* pump = box->getPump();
+        Relay* light = box->getLight();
+        doc["devices"][box->getName()]["pump"]["name"] = pump->getName();
+        doc["devices"][box->getName()]["pump"]["state"] = pump->getState();
+        doc["devices"][box->getName()]["light"]["name"] = light->getName();
+        doc["devices"][box->getName()]["light"]["state"] = light->getState();
     }
 
     String buf;
@@ -166,60 +163,60 @@ void handleDevices()
 
 void handlePumpOn()
 {
-    Box box = Boxes[0];
-    Relay pump = box.getPump();
+    Box* box = &Boxes[0];
+    Relay* pump = box->getPump();
 
-    Serial.println(pump.getName());
-    pump.turnON();
-    server.send(200, "text/plain", pump.getStateJson());
+    Serial.println(pump->getName());
+    pump->turnON();
+    server.send(200, "text/plain", pump->getStateJson());
 }
 
 void handlePumpOff()
 {
-    Box box = Boxes[0];
-    Serial.println(box.getPump().getName());
-    box.getPump().turnOFF();
-    server.send(200, "text/plain", box.getPump().getStateJson());
+    Box* box = &Boxes[0];
+    Serial.println(box->getPump()->getName());
+    box->getPump()->turnOFF();
+    server.send(200, "text/plain", box->getPump()->getStateJson());
 }
 
 void handlePumpToggle()
 {
-    Box box = Boxes[0];
-    Serial.println(box.getPump().getName());
-    box.getPump().toggle();
-    server.send(200, "text/plain", box.getPump().getStateJson());
+    Box* box = &Boxes[0];
+    Serial.println(box->getPump()->getName());
+    box->getPump()->toggle();
+    server.send(200, "text/plain", box->getPump()->getStateJson());
 }
 
 void handlePumpTrigger()
 {
-    Box box = Boxes[0];
-    Serial.println(box.getPump().getName());
-    box.getPump().trigger();
-    server.send(200, "text/plain", box.getPump().getStateJson());
+    Box* box = &Boxes[0];
+    Serial.println(box->getPump()->getName());
+    box->getPump()->trigger();
+    server.send(200, "text/plain", box->getPump()->getStateJson());
 }
 
 void handlePlugOn()
 {
-    Box box = Boxes[0];
-    Serial.println(box.getLight().getName());
-    box.getLight().turnON();
-    server.send(200, "text/plain", box.getLight().getStateJson());
+    Box* box = &Boxes[0];
+    Serial.println(box->getLight()->getName());
+    box->getLight()->turnON();
+    server.send(200, "text/plain", box->getLight()->getStateJson());
 }
 
 void handlePlugOff()
 {
-    Box box = Boxes[0];
-    Serial.println(box.getLight().getName());
-    box.getLight().turnOFF();
-    server.send(200, "text/plain", box.getLight().getStateJson());
+    Box* box = &Boxes[0];
+    Serial.println(box->getLight()->getName());
+    box->getLight()->turnOFF();
+    server.send(200, "text/plain", box->getLight()->getStateJson());
 }
 
 void handlePlugToggle()
 {
-    Box box = Boxes[0];
-    Serial.println(box.getLight().getName());
-    box.getLight().toggle();
-    server.send(200, "text/plain", box.getLight().getStateJson());
+    Box* box = &Boxes[0];
+    Serial.println(box->getLight()->getName());
+    box->getLight()->toggle();
+    server.send(200, "text/plain", box->getLight()->getStateJson());
 }
 
 void handleResetWifi()

@@ -22,12 +22,12 @@ String Box::getName()
     return name;
 }
 
-Relay Box::getPump()
+Relay* Box::getPump()
 {
-    return pump;
+    return &pump;
 }
 
-Relay Box::getLight()
+Relay* Box::getLight()
 {
-    return light;
+    return &light;
 }

@@ -17,8 +17,8 @@ public:
     Box(String boxId, String boxName, uint8_t pumpPinNumber, uint8_t lightPinNumber);
     String getId();
     String getName();
-    Relay getPump();
-    Relay getLight();
+    Relay* getPump();
+    Relay* getLight();
 };
 
 #endif
