@@ -6,6 +6,9 @@
 #include <FS.h>
 #include <uri/UriBraces.h>
 #include <uri/UriRegex.h>
+#include <Arduino.h>
+#include <AsyncDelay.h>
+
 
 #include "Relay.h"
 #include "Box.h"
@@ -47,33 +50,72 @@ void setup()
     // if it does not connect it starts an access point with the specified name
     wifiManager.autoConnect("HydroConnect");
 
+    for (unsigned int i = 0; i < sizeof Boxes / sizeof Boxes[0]; i++)
+    {
+        Box *box = &Boxes[i];
+        Relay *pump = box->getPump();
+
+        Serial.println("Initializing scheduler for pump box-1");
+        Serial.println(pump->getTimerTimeOnSec());
+
+        pump->getPumpOnDelay()->start(pump->getTimerTimeOnSec() * 1000, AsyncDelay::MILLIS);
+    }
+
     // if you get here you have connected to the WiFi
     Serial.println("Connected.");
 
     server.on("/", handleDashboard);
     server.on("/devices", handleDevices);
 
-    server.on("/pump/on", handlePumpOn);
-
-    server.on(UriBraces("/{}/pump/on"), []() 
+    server.on(UriBraces("/test-on"), []() 
         {
-            String boxName = server.pathArg(0);
-
-            Box *box = getBoxByName(boxName);
-
-            Serial.println("handleFileRead: " + box->getName());
-
+            Box *box = &Boxes[0];
+            Relay *pump = box->getPump();
+            pump->timerOn();
             server.send(200, "text/plain", "Pump turned on"); 
         }
     );
 
-    server.on("/pump/off", handlePumpOff);
-    server.on("/pump/trigger", handlePumpTrigger);
-    server.on("/pump/toggle", handlePumpToggle);
+    server.on(UriBraces("/test-off"), []() 
+        {
+            Box *box = &Boxes[0];
+            Relay *pump = box->getPump();
+            pump->timerOff();
+            server.send(200, "text/plain", "Pump turned on"); 
+        }
+    );
 
-    server.on("/light/on", handlePlugOn);
-    server.on("/light/off", handlePlugOff);
-    server.on("/light/toggle", handlePlugToggle);
+    server.on(UriBraces("/{}/pump/toggle"), []() 
+        {
+            String boxName = server.pathArg(0);
+            Box *box = getBoxByName(boxName);
+            box->getPump()->toggle();
+            Serial.println("handleFileRead: " + box->getName());
+            server.send(200, "text/plain", "Pump turned on"); 
+        }
+    );
+
+    server.on(UriBraces("/{}/pump/timer/{}/{}"), []() 
+        {
+            String boxName    = server.pathArg(0);
+            int timeOnSec     = server.pathArg(1).toInt();
+            int timeOffSec    = server.pathArg(2).toInt();
+            Box *box = getBoxByName(boxName);
+            box->getPump()->timerSetup(timeOnSec, timeOffSec);
+            Serial.println("handleFileRead: " + box->getName());
+            server.send(200, "text/plain", "Pump turned on"); 
+        }
+    );
+
+    server.on(UriBraces("/{}/light/toggle"), []() 
+        {
+            String boxName = server.pathArg(0);
+            Box *box = getBoxByName(boxName);
+            box->getLight()->toggle();
+            Serial.println("handleFileRead: " + box->getName());
+            server.send(200, "text/plain", "Pump turned on"); 
+        }
+    );
 
     server.on("/reset-wifi", handleResetWifi);
 
@@ -88,19 +130,98 @@ void setup()
 void loop()
 {
     server.handleClient();
-}
 
-Box *getBoxByName(String name)
-{
-    for (unsigned int i = 0; i < sizeof Boxes / sizeof Boxes[0]; i++)
-    {
-        if (Boxes[i].getName() == name)
-        {
-            return &Boxes[i]; // Return a pointer to the matching object
+    Box *box = &Boxes[0];
+    Relay *pump = box->getPump();
+
+    // Sprawdź, czy cykl jest włączony
+    if (pump->getTimerState() == 1) {
+
+
+        Serial.println(millis());
+        Serial.println(pump->getPumpOnDelay()->isExpired());
+        Serial.println(pump->getPumpOnDelay()->getDelay());
+        Serial.println(pump->getPumpOnDelay()->getUnit());
+        Serial.println(pump->getPumpOnDelay()->getExpiry());
+        Serial.println(pump->getPumpOnDelay()->getDuration());
+        
+        // Jeśli czas dla włączenia pompy upłynął
+        if (pump->getPumpOnDelay()->isExpired() == true) {
+
+            Serial.println("pump->getPumpOnDelay()->isExpired");
+
+            // Wyłącz pompę
+            pump->turnOFF();
+
+            // Rozpocznij odliczanie czasu dla wyłączenia pompy
+            // pump->getPumpOffDelay()->start(pump->getTimerTimeOffSec() * 1000, AsyncDelay::MILLIS);
+            pump->getPumpOffDelay()->start(3000, AsyncDelay::MILLIS);
+        }
+
+        // Jeśli czas dla wyłączenia pompy upłynął
+        if (pump->getPumpOffDelay()->isExpired() == true) {
+
+            Serial.println("pump->getPumpOffDelay()->isExpired");
+
+            // Włącz pompę
+            pump->turnON();
+
+            // Rozpocznij odliczanie czasu dla włączenia pompy
+            pump->getPumpOnDelay()->start(pump->getTimerTimeOnSec() * 1000, AsyncDelay::MILLIS);
         }
     }
 
-    return NULL; // Return NULL if no match is found
+}
+
+void handleDashboard()
+{
+    File file = LittleFS.open("/html/index.html", "r"); // Open it
+    if (!file)
+    {
+        Serial.println("Failed to open file for reading");
+        return;
+    }
+
+    server.streamFile(file, "text/html", HTTP_GET); // And send it to the client
+    file.close();                                   // Then close the file again
+}
+
+void handleDevices()
+{
+    DynamicJsonDocument doc(1024);
+
+    for (unsigned int i = 0; i < sizeof Boxes / sizeof Boxes[0]; i++)
+    {
+        Box *box = &Boxes[i];
+        Relay *pump = box->getPump();
+        Relay *light = box->getLight();
+
+        doc["devices"][box->getName()]["pump"]["name"] = pump->getName();
+        doc["devices"][box->getName()]["pump"]["state"] = pump->getState();
+        doc["devices"][box->getName()]["pump"]["timer-state"] = pump->getTimerState();
+        doc["devices"][box->getName()]["pump"]["timer-time-on"] = pump->getTimerTimeOnSec();
+        doc["devices"][box->getName()]["pump"]["timer-time-off"] = pump->getTimerTimeOffSec();
+
+        doc["devices"][box->getName()]["light"]["name"] = light->getName();
+        doc["devices"][box->getName()]["light"]["state"] = light->getState();
+        doc["devices"][box->getName()]["light"]["timer-state"] = light->getTimerState();
+        doc["devices"][box->getName()]["light"]["timer-time-on"] = light->getTimerTimeOnSec();
+        doc["devices"][box->getName()]["light"]["timer-time-off"] = light->getTimerTimeOffSec();
+    }
+
+    String buf;
+    serializeJson(doc, buf);
+    server.send(200, F("application/json"), buf);
+}
+
+void handleResetWifi()
+{
+    String json;
+    StaticJsonDocument<200> doc;
+    doc["success"] = "true";
+    serializeJson(doc, json);
+    server.send(200, "text/plain", json);
+    wifiManager.resetSettings();
 }
 
 void handleNotFound()
@@ -158,103 +279,15 @@ bool handleFileRead(String path)
     return false; // If the file doesn't exist, return false
 }
 
-void handleDashboard()
+Box *getBoxByName(String name)
 {
-    File file = LittleFS.open("/html/index.html", "r"); // Open it
-    if (!file)
-    {
-        Serial.println("Failed to open file for reading");
-        return;
-    }
-
-    server.streamFile(file, "text/html", HTTP_GET); // And send it to the client
-    file.close();                                   // Then close the file again
-}
-
-void handleDevices()
-{
-    DynamicJsonDocument doc(1024);
-
     for (unsigned int i = 0; i < sizeof Boxes / sizeof Boxes[0]; i++)
     {
-        Box *box = &Boxes[i];
-        Relay *pump = box->getPump();
-        Relay *light = box->getLight();
-        doc["devices"][box->getName()]["pump"]["name"] = pump->getName();
-        doc["devices"][box->getName()]["pump"]["state"] = pump->getState();
-        doc["devices"][box->getName()]["light"]["name"] = light->getName();
-        doc["devices"][box->getName()]["light"]["state"] = light->getState();
+        if (Boxes[i].getName() == name)
+        {
+            return &Boxes[i]; // Return a pointer to the matching object
+        }
     }
 
-    String buf;
-    serializeJson(doc, buf);
-    server.send(200, F("application/json"), buf);
-}
-
-void handlePumpOn()
-{
-    Box *box = &Boxes[0];
-    Relay *pump = box->getPump();
-
-    Serial.println(pump->getName());
-    pump->turnON();
-    server.send(200, "text/plain", pump->getStateJson());
-}
-
-void handlePumpOff()
-{
-    Box *box = &Boxes[0];
-    Serial.println(box->getPump()->getName());
-    box->getPump()->turnOFF();
-    server.send(200, "text/plain", box->getPump()->getStateJson());
-}
-
-void handlePumpToggle()
-{
-    Box *box = &Boxes[0];
-    Serial.println(box->getPump()->getName());
-    box->getPump()->toggle();
-    server.send(200, "text/plain", box->getPump()->getStateJson());
-}
-
-void handlePumpTrigger()
-{
-    Box *box = &Boxes[0];
-    Serial.println(box->getPump()->getName());
-    box->getPump()->trigger();
-    server.send(200, "text/plain", box->getPump()->getStateJson());
-}
-
-void handlePlugOn()
-{
-    Box *box = &Boxes[0];
-    Serial.println(box->getLight()->getName());
-    box->getLight()->turnON();
-    server.send(200, "text/plain", box->getLight()->getStateJson());
-}
-
-void handlePlugOff()
-{
-    Box *box = &Boxes[0];
-    Serial.println(box->getLight()->getName());
-    box->getLight()->turnOFF();
-    server.send(200, "text/plain", box->getLight()->getStateJson());
-}
-
-void handlePlugToggle()
-{
-    Box *box = &Boxes[0];
-    Serial.println(box->getLight()->getName());
-    box->getLight()->toggle();
-    server.send(200, "text/plain", box->getLight()->getStateJson());
-}
-
-void handleResetWifi()
-{
-    String json;
-    StaticJsonDocument<200> doc;
-    doc["success"] = "true";
-    serializeJson(doc, json);
-    server.send(200, "text/plain", json);
-    wifiManager.resetSettings();
+    return NULL; // Return NULL if no match is found
 }
